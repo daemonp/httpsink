@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP Request Viewer</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #2E3440; color: #ECEFF4; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; color: #88C0D0; }
+        .log-entry { background-color: #3B4252; border-radius: 5px; padding: 10px; margin-bottom: 10px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+        button { background-color: #BF616A; color: #ECEFF4; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #D08770; }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/nord.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/http.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/json.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>HTTP Request Logs</h1>
+        <div style="text-align: center; margin-bottom: 20px;">
+            <button id="clearLogs">
+                Clear Logs
+            </button>
+        </div>
+        <div id="requests">
+            {{ range .requests }}
+            <div class="log-entry">
+                <pre><code class="language-http">{{ .RequestLine }}
+{{ .Headers }}</code></pre>
+                {{ if .Body }}
+                <pre><code class="language-json">{{ .Body }}</code></pre>
+                {{ end }}
+            </div>
+            {{ end }}
+        </div>
+    </div>
+
+    <script>
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socket = new WebSocket(`${protocol}//${window.location.host}/logs/ws`);
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            updateRequests(data);
+        };
+
+        function updateRequests(data) {
+            const requestsDiv = document.getElementById('requests');
+            requestsDiv.innerHTML = '';
+            data.forEach(request => {
+                const requestDiv = document.createElement('div');
+                requestDiv.className = 'log-entry';
+                requestDiv.innerHTML = `
+                    <pre><code class="language-http">${request.request_line}
+${request.headers}</code></pre>
+                    ${request.body ? `<pre><code class="language-json">${request.body}</code></pre>` : ''}
+                `;
+                requestsDiv.appendChild(requestDiv);
+            });
+            hljs.highlightAll();
+        }
+
+        document.getElementById('clearLogs').addEventListener('click', function() {
+            fetch('/logs/clear', { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        document.getElementById('requests').innerHTML = '';
+                    }
+                });
+        });
+
+        hljs.highlightAll();
+    </script>
+</body>
+</html>
